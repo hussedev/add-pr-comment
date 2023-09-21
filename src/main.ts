@@ -36,9 +36,17 @@ const run = async (): Promise<void> => {
       status,
       messageFind,
       messageReplace,
+      isForceFail,
     } = await getInputs()
 
     const octokit = github.getOctokit(repoToken)
+
+    const exit = (isForceFail: boolean) => {
+      if (isForceFail) {
+        core.setOutput('force-fail', 'true')
+        throw new Error('force fail')
+      }
+    }
 
     let message = await getMessage({
       messagePath,
@@ -67,7 +75,7 @@ const run = async (): Promise<void> => {
         'no issue number found, use a pull_request event, a pull event, or provide an issue input',
       )
       core.setOutput('comment-created', 'false')
-      return
+      return exit(isForceFail)
     }
 
     let existingComment: ExistingIssueComment | undefined
@@ -86,7 +94,7 @@ const run = async (): Promise<void> => {
     if (!existingComment && updateOnly) {
       core.info('no existing comment found and update-only is true, exiting')
       core.setOutput('comment-created', 'false')
-      return
+      return exit(isForceFail)
     }
 
     let comment: CreateIssueCommentResponseData | null | undefined
@@ -135,6 +143,7 @@ const run = async (): Promise<void> => {
       core.setOutput('comment-created', 'false')
       core.setOutput('comment-updated', 'false')
     }
+    exit(isForceFail)
   } catch (err) {
     if (process.env.NODE_ENV === 'test') {
       // eslint-disable-next-line no-console

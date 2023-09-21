@@ -4,6 +4,7 @@ export interface Inputs {
   allowRepeats: boolean
   attachPath?: string[]
   commitSha: string
+  isForceFail: boolean
   issue?: number
   messageInput?: string
   messageId: string

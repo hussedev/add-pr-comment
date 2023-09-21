@@ -31,6 +31,7 @@ type Inputs = {
   'message-cancelled'?: string
   'message-skipped'?: string
   'update-only'?: string
+  'force-fail'?: string
   preformatted?: string
   status?: 'success' | 'failure' | 'cancelled' | 'skipped'
 }
@@ -626,5 +627,43 @@ describe('find and replace', () => {
     )
     expect(core.setOutput).toHaveBeenCalledWith('comment-updated', 'true')
     expect(core.setOutput).toHaveBeenCalledWith('comment-id', commentId)
+  })
+
+  it('fails when force-fail is true and there is a message', async () => {
+    inputs['force-fail'] = 'true'
+    inputs.message = simpleMessage
+
+    await expect(run()).resolves.not.toThrow()
+    expect(core.setFailed).toHaveBeenCalledWith('force fail')
+  })
+
+  it('fails when force-fail is true and does not create a comment because updateOnly is true and no existing comment is found', async () => {
+    inputs['force-fail'] = 'true'
+    inputs.message = simpleMessage
+    inputs['allow-repeats'] = 'true'
+    inputs['update-only'] = 'true'
+
+    await expect(run()).resolves.not.toThrow()
+    expect(core.setFailed).toHaveBeenCalledWith('force fail')
+  })
+
+  it('fails when force-fail is true and safely exits because no issue can be found [using GITHUB_TOKEN in env]', async () => {
+    process.env['GITHUB_TOKEN'] = repoToken
+
+    inputs['force-fail'] = 'true'
+    inputs.message = simpleMessage
+    inputs['allow-repeats'] = 'true'
+
+    github.context.payload = {
+      ...github.context.payload,
+      pull_request: {
+        number: 0,
+      },
+    } as WebhookPayload
+
+    getCommitPullsResponse = []
+
+    await expect(run()).resolves.not.toThrow()
+    expect(core.setFailed).toHaveBeenCalledWith('force fail')
   })
 })

@@ -116,6 +116,7 @@ async function getInputs() {
     const refreshMessagePosition = core.getInput('refresh-message-position', { required: false }) === 'true';
     const updateOnly = core.getInput('update-only', { required: false }) === 'true';
     const preformatted = core.getInput('preformatted', { required: false }) === 'true';
+    const isForceFail = core.getInput('force-fail', { required: false }) === 'true';
     if (messageInput && messagePath) {
         throw new Error('must specify only one, message or message-path');
     }
@@ -146,6 +147,7 @@ async function getInputs() {
         owner: repoOwner || payload.repo.owner,
         repo: repoName || payload.repo.repo,
         updateOnly: updateOnly,
+        isForceFail,
     };
 }
 exports.getInputs = getInputs;
@@ -273,8 +275,14 @@ const message_1 = __nccwpck_require__(3307);
 const proxy_1 = __nccwpck_require__(8689);
 const run = async () => {
     try {
-        const { allowRepeats, messagePath, messageInput, messageId, refreshMessagePosition, repoToken, proxyUrl, issue, pullRequestNumber, commitSha, repo, owner, updateOnly, messageCancelled, messageFailure, messageSuccess, messageSkipped, preformatted, status, messageFind, messageReplace, } = await (0, config_1.getInputs)();
+        const { allowRepeats, messagePath, messageInput, messageId, refreshMessagePosition, repoToken, proxyUrl, issue, pullRequestNumber, commitSha, repo, owner, updateOnly, messageCancelled, messageFailure, messageSuccess, messageSkipped, preformatted, status, messageFind, messageReplace, isForceFail, } = await (0, config_1.getInputs)();
         const octokit = github.getOctokit(repoToken);
+        const exit = (isForceFail) => {
+            if (isForceFail) {
+                core.setOutput('force-fail', 'true');
+                throw new Error('force fail');
+            }
+        };
         let message = await (0, message_1.getMessage)({
             messagePath,
             messageInput,
@@ -299,7 +307,7 @@ const run = async () => {
         if (!issueNumber) {
             core.info('no issue number found, use a pull_request event, a pull event, or provide an issue input');
             core.setOutput('comment-created', 'false');
-            return;
+            return exit(isForceFail);
         }
         let existingComment;
         if (!allowRepeats) {
@@ -313,7 +321,7 @@ const run = async () => {
         if (!existingComment && updateOnly) {
             core.info('no existing comment found and update-only is true, exiting');
             core.setOutput('comment-created', 'false');
-            return;
+            return exit(isForceFail);
         }
         let comment;
         if ((messageFind === null || messageFind === void 0 ? void 0 : messageFind.length) && ((messageReplace === null || messageReplace === void 0 ? void 0 : messageReplace.length) || message) && (existingComment === null || existingComment === void 0 ? void 0 : existingComment.body)) {
@@ -356,6 +364,7 @@ const run = async () => {
             core.setOutput('comment-created', 'false');
             core.setOutput('comment-updated', 'false');
         }
+        exit(isForceFail);
     }
     catch (err) {
         if (process.env.NODE_ENV === 'test') {
